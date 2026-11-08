@@ -1,0 +1,675 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Голосовой журнал</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="file:///C:/Users/igrowol/Desktop/%D1%81%D0%B0%D0%B9%D1%82%20%D0%B4%D0%BB%D1%8F%20%D0%B1%D0%B0%D1%82%D0%B8/index.html" rel="stylesheet">
+<style>
+/* Раскладка: слева панель записи (микрофон, живой текст, ручной ввод), справа журнал с временем. На телефоне колонки встают друг под друга. */
+:root {
+  --bg: #edf0f3;
+  --surface: #fbfcfd;
+  --surface-2: #f1f4f7;
+  --ink: #101a26;
+  --muted: #5b6878;
+  --line: #d5dbe3;
+  --accent: #0d6e6e;
+  --accent-ink: #ffffff;
+  --accent-soft: #d9eeee;
+  --rec: #d6334a;
+  --rec-soft: #fbe3e7;
+  --shadow: 0 1px 2px rgba(16, 26, 38, .06), 0 8px 24px rgba(16, 26, 38, .06);
+  --font-display: "Unbounded", "Onest", system-ui, sans-serif;
+  --font-body: "Onest", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0e141b;
+    --surface: #151d27;
+    --surface-2: #1b2531;
+    --ink: #e6ecf3;
+    --muted: #8c9aad;
+    --line: #263140;
+    --accent: #3fb8b0;
+    --accent-ink: #04201f;
+    --accent-soft: #14312f;
+    --rec: #ff6b81;
+    --rec-soft: #3a1b22;
+    --shadow: 0 1px 2px rgba(0, 0, 0, .4), 0 8px 24px rgba(0, 0, 0, .3);
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0e141b;
+  --surface: #151d27;
+  --surface-2: #1b2531;
+  --ink: #e6ecf3;
+  --muted: #8c9aad;
+  --line: #263140;
+  --accent: #3fb8b0;
+  --accent-ink: #04201f;
+  --accent-soft: #14312f;
+  --rec: #ff6b81;
+  --rec-soft: #3a1b22;
+  --shadow: 0 1px 2px rgba(0, 0, 0, .4), 0 8px 24px rgba(0, 0, 0, .3);
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-body);
+  font-size: 16px;
+  line-height: 1.5;
+  padding-block: 28px 48px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+.wrap { max-width: 1120px; margin: 0 auto; display: grid; gap: 20px; }
+
+/* Шапка */
+.top { display: flex; flex-wrap: wrap; align-items: end; justify-content: space-between; gap: 12px 24px; }
+.top h1 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: clamp(1.35rem, 3.4vw, 2rem);
+  letter-spacing: -0.01em;
+  line-height: 1.15;
+  text-wrap: balance;
+}
+.top p { margin: 6px 0 0; color: var(--muted); max-width: 52ch; }
+.clock {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  line-height: 1.25;
+}
+.clock .t { font-size: 1.5rem; font-weight: 500; }
+.clock .d { font-size: .8rem; color: var(--muted); letter-spacing: .04em; }
+
+.notice {
+  border: 1px solid var(--rec);
+  background: var(--rec-soft);
+  border-radius: 10px;
+  padding: 12px 14px;
+  font-size: .95rem;
+}
+
+.grid { display: grid; grid-template-columns: minmax(0, 380px) minmax(0, 1fr); gap: 20px; align-items: start; }
+@media (max-width: 860px) { .grid { grid-template-columns: minmax(0, 1fr); } }
+
+.panel {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  box-shadow: var(--shadow);
+}
+
+/* Панель записи */
+.capture { padding: 24px 20px 20px; display: grid; gap: 18px; justify-items: center; text-align: center; }
+.mic-wrap { position: relative; width: 132px; height: 132px; display: grid; place-items: center; }
+.mic-wrap::before, .mic-wrap::after {
+  content: ""; position: absolute; inset: 14px; border-radius: 50%;
+  border: 2px solid var(--rec); opacity: 0; pointer-events: none;
+}
+.listening .mic-wrap::before { animation: ring 2s ease-out infinite; }
+.listening .mic-wrap::after { animation: ring 2s ease-out .9s infinite; }
+@keyframes ring { 0% { transform: scale(1); opacity: .55; } 100% { transform: scale(1.45); opacity: 0; } }
+
+.mic {
+  position: relative; z-index: 1;
+  width: 104px; height: 104px; border-radius: 50%;
+  border: 0; cursor: pointer;
+  background: var(--accent); color: var(--accent-ink);
+  display: grid; place-items: center;
+  box-shadow: 0 6px 18px rgba(13, 110, 110, .35);
+  transition: transform .15s ease, background-color .2s ease;
+}
+.mic:hover { transform: scale(1.04); }
+.mic:active { transform: scale(.97); }
+.mic:focus-visible, button:focus-visible, input:focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
+.listening .mic { background: var(--rec); color: #fff; box-shadow: 0 6px 18px rgba(214, 51, 74, .4); }
+.mic svg { width: 40px; height: 40px; }
+.mic .ico-stop { display: none; }
+.listening .mic .ico-mic { display: none; }
+.listening .mic .ico-stop { display: block; }
+.mic[disabled] { opacity: .45; cursor: not-allowed; transform: none; }
+
+.wave { display: flex; align-items: center; justify-content: center; gap: 3px; height: 34px; }
+.wave i { display: block; width: 4px; height: 6px; border-radius: 2px; background: var(--line); transition: background-color .2s; }
+.listening .wave i { background: var(--rec); animation: bar 1s ease-in-out infinite; }
+.wave i:nth-child(3n) { animation-delay: .15s; }
+.wave i:nth-child(3n+1) { animation-delay: .45s; }
+.wave i:nth-child(4n) { animation-delay: .3s; }
+.wave i:nth-child(5n) { animation-delay: .6s; }
+@keyframes bar { 0%, 100% { height: 6px; } 50% { height: 30px; } }
+
+.status { margin: 0; min-height: 3em; font-weight: 500; text-wrap: balance; }
+.status.err { color: var(--rec); }
+.live {
+  width: 100%; min-height: 56px;
+  border: 1px dashed var(--line); border-radius: 10px;
+  padding: 12px 14px; text-align: left;
+  color: var(--muted); background: var(--surface-2);
+  overflow-wrap: anywhere;
+}
+.live .lbl { display: block; font-size: .72rem; text-transform: uppercase; letter-spacing: .08em; margin-bottom: 2px; }
+.live .txt { color: var(--ink); font-size: 1.05rem; }
+
+.manual { width: 100%; display: grid; gap: 8px; text-align: left; border-top: 1px solid var(--line); padding-top: 16px; }
+.manual label { font-size: .8rem; color: var(--muted); letter-spacing: .04em; text-transform: uppercase; }
+.manual .row { display: flex; gap: 8px; }
+input[type="text"], input[type="search"] {
+  flex: 1; min-width: 0;
+  font: inherit; color: var(--ink);
+  background: var(--surface); border: 1px solid var(--line); border-radius: 10px;
+  padding: 10px 12px;
+}
+input::placeholder { color: var(--muted); opacity: .8; }
+
+.btn {
+  font: inherit; font-weight: 500; cursor: pointer;
+  border: 1px solid var(--line); background: var(--surface); color: var(--ink);
+  border-radius: 10px; padding: 9px 14px; white-space: nowrap;
+  transition: background-color .15s, border-color .15s;
+}
+.btn:hover { background: var(--surface-2); border-color: var(--muted); }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.btn.primary:hover { filter: brightness(1.08); background: var(--accent); }
+.btn.danger.armed { background: var(--rec); border-color: var(--rec); color: #fff; }
+.btn[disabled] { opacity: .45; cursor: not-allowed; }
+
+/* Журнал */
+.log-head { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; padding: 16px 18px; border-bottom: 1px solid var(--line); }
+.log-head h2 { margin: 0; font-family: var(--font-display); font-weight: 500; font-size: 1.05rem; }
+.count {
+  font-family: var(--font-mono); font-size: .8rem;
+  background: var(--accent-soft); color: var(--accent);
+  border-radius: 999px; padding: 2px 10px;
+}
+.log-tools { display: flex; flex-wrap: wrap; gap: 8px; margin-left: auto; flex: 1 1 260px; justify-content: flex-end; }
+.log-tools input { flex: 1 1 140px; max-width: 240px; }
+
+.log { list-style: none; margin: 0; padding: 0; }
+.entry {
+  display: grid;
+  grid-template-columns: 2.6rem minmax(0, 1fr) auto auto;
+  align-items: center; gap: 4px 14px;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--line);
+}
+.entry:last-child { border-bottom: 0; }
+.entry.fresh { animation: fresh 1.6s ease-out; }
+@keyframes fresh { 0% { background: var(--accent-soft); } 100% { background: transparent; } }
+.num { font-family: var(--font-mono); color: var(--muted); font-size: .85rem; font-variant-numeric: tabular-nums; }
+.who { min-width: 0; }
+.who .name { font-weight: 600; font-size: 1.12rem; overflow-wrap: anywhere; }
+.who .src { display: inline-block; margin-top: 2px; font-size: .72rem; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+.who .src.voice { color: var(--accent); }
+.when { text-align: right; font-family: var(--font-mono); font-variant-numeric: tabular-nums; line-height: 1.3; }
+.when .t { font-size: 1.1rem; font-weight: 500; }
+.when .d { font-size: .78rem; color: var(--muted); }
+.acts { display: flex; gap: 2px; }
+.icon-btn {
+  border: 0; background: transparent; color: var(--muted); cursor: pointer;
+  width: 36px; height: 36px; border-radius: 8px; display: grid; place-items: center;
+}
+.icon-btn:hover { background: var(--surface-2); color: var(--ink); }
+.icon-btn svg { width: 18px; height: 18px; }
+.edit-row { display: flex; gap: 6px; }
+.edit-row input { padding: 7px 10px; }
+
+.empty { padding: 44px 24px; text-align: center; color: var(--muted); }
+.empty strong { display: block; color: var(--ink); font-size: 1.05rem; margin-bottom: 4px; }
+
+@media (max-width: 560px) {
+  .entry { grid-template-columns: 2rem minmax(0, 1fr) auto; }
+  .when { grid-column: 2 / 3; grid-row: 2; text-align: left; display: flex; gap: 10px; align-items: baseline; }
+  .acts { grid-column: 3; grid-row: 1 / 3; align-self: center; flex-direction: column; }
+}
+
+.toast {
+  position: fixed; left: 50%; transform: translateX(-50%);
+  bottom: calc(18px + env(safe-area-inset-bottom, 0px));
+  background: var(--ink); color: var(--bg);
+  border-radius: 10px; padding: 10px 14px;
+  display: flex; gap: 14px; align-items: center;
+  box-shadow: var(--shadow); z-index: 20;
+  max-width: calc(100vw - 32px);
+}
+.toast button { font: inherit; font-weight: 600; background: none; border: 0; color: inherit; text-decoration: underline; cursor: pointer; padding: 0; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div>
+      <h1>Голосовой журнал</h1>
+      <p>Нажмите на микрофон и назовите фамилию и имя. Запись появится в журнале вместе со временем, когда она была произнесена.</p>
+    </div>
+    <div class="clock" aria-hidden="true">
+      <div class="t" id="clockT">--:--:--</div>
+      <div class="d" id="clockD"></div>
+    </div>
+  </header>
+
+  <div id="notice" class="notice" hidden></div>
+
+  <div class="grid">
+    <section class="panel capture" id="capture" aria-label="Запись голоса">
+      <div class="mic-wrap">
+        <button class="mic" id="mic" type="button" aria-pressed="false" aria-label="Включить микрофон">
+          <svg class="ico-mic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3M9 21h6"/></svg>
+          <svg class="ico-stop" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="6.5" y="6.5" width="11" height="11" rx="2.5"/></svg>
+        </button>
+      </div>
+      <div class="wave" aria-hidden="true">
+        <i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i>
+      </div>
+      <p class="status" id="status" role="status" aria-live="polite">Нажмите на микрофон и разрешите доступ в браузере.</p>
+      <div class="live" aria-live="off">
+        <span class="lbl">Распознаётся сейчас</span>
+        <span class="txt" id="live">…</span>
+      </div>
+      <form class="manual" id="manualForm" autocomplete="off">
+        <label for="manualName">Или впишите вручную</label>
+        <div class="row">
+          <input type="text" id="manualName" placeholder="Например, Анна Петрова" maxlength="80">
+          <button class="btn primary" type="submit">Добавить</button>
+        </div>
+      </form>
+    </section>
+
+    <section class="panel" aria-label="Журнал записей">
+      <div class="log-head">
+        <h2>Журнал</h2>
+        <span class="count" id="count">0</span>
+        <div class="log-tools">
+          <input type="search" id="search" placeholder="Поиск по фамилии" aria-label="Поиск по фамилии">
+          <button class="btn" type="button" id="export">Скачать CSV</button>
+          <button class="btn danger" type="button" id="clear">Очистить</button>
+        </div>
+      </div>
+      <ol class="log" id="log"></ol>
+    </section>
+  </div>
+</div>
+
+<div class="toast" id="toast" hidden>
+  <span id="toastMsg"></span>
+  <button type="button" id="toastBtn">Отменить</button>
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  var LS_KEY = 'golosovoy-zhurnal-v1';
+  var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+
+  var $ = function (id) { return document.getElementById(id); };
+  var els = {
+    capture: $('capture'), mic: $('mic'), status: $('status'), live: $('live'),
+    log: $('log'), count: $('count'), search: $('search'), exp: $('export'), clear: $('clear'),
+    manualForm: $('manualForm'), manualName: $('manualName'), notice: $('notice'),
+    toast: $('toast'), toastMsg: $('toastMsg'), toastBtn: $('toastBtn'),
+    clockT: $('clockT'), clockD: $('clockD')
+  };
+
+  /* ---------- Данные ---------- */
+  var entries = [];
+  try { entries = JSON.parse(localStorage.getItem(LS_KEY) || '[]'); } catch (e) { entries = []; }
+  if (!Array.isArray(entries)) entries = [];
+  function save() { try { localStorage.setItem(LS_KEY, JSON.stringify(entries)); } catch (e) {} }
+
+  var editingId = null;
+  var freshId = null;
+  var query = '';
+
+  /* ---------- Время ---------- */
+  function pad(n) { return (n < 10 ? '0' : '') + n; }
+  function fmtTime(d) { return pad(d.getHours()) + ':' + pad(d.getMinutes()) + ':' + pad(d.getSeconds()); }
+  function fmtDate(d) { return pad(d.getDate()) + '.' + pad(d.getMonth() + 1) + '.' + d.getFullYear(); }
+
+  function tickClock() {
+    var now = new Date();
+    els.clockT.textContent = fmtTime(now);
+    els.clockD.textContent = now.toLocaleDateString('ru-RU', { weekday: 'long', day: 'numeric', month: 'long' });
+  }
+  tickClock();
+  setInterval(tickClock, 1000);
+
+  /* ---------- Имена ---------- */
+  function formatName(raw) {
+    var s = String(raw || '').replace(/\s+/g, ' ').replace(/[.,!?;:]+$/g, '').trim();
+    if (!s) return '';
+    return s.toLowerCase().replace(/(^|[\s\-'’])(\p{L})/gu, function (m, a, b) { return a + b.toUpperCase(); });
+  }
+
+  function addEntry(raw, src, date) {
+    var name = formatName(raw);
+    if (!name) return null;
+    var entry = {
+      id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+      name: name,
+      ts: (date || new Date()).getTime(),
+      src: src
+    };
+    entries.push(entry);
+    freshId = entry.id;
+    save();
+    render();
+    return entry;
+  }
+
+  /* ---------- Отрисовка ---------- */
+  function svgIcon(path) {
+    var ns = 'http://www.w3.org/2000/svg';
+    var s = document.createElementNS(ns, 'svg');
+    s.setAttribute('viewBox', '0 0 24 24');
+    s.setAttribute('fill', 'none');
+    s.setAttribute('stroke', 'currentColor');
+    s.setAttribute('stroke-width', '1.8');
+    s.setAttribute('stroke-linecap', 'round');
+    s.setAttribute('stroke-linejoin', 'round');
+    s.setAttribute('aria-hidden', 'true');
+    var p = document.createElementNS(ns, 'path');
+    p.setAttribute('d', path);
+    s.appendChild(p);
+    return s;
+  }
+  function iconButton(label, path, onClick) {
+    var b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'icon-btn';
+    b.setAttribute('aria-label', label);
+    b.title = label;
+    b.appendChild(svgIcon(path));
+    b.addEventListener('click', onClick);
+    return b;
+  }
+  function el(tag, cls, text) {
+    var n = document.createElement(tag);
+    if (cls) n.className = cls;
+    if (text != null) n.textContent = text;
+    return n;
+  }
+
+  function render() {
+    els.log.textContent = '';
+    var total = entries.length;
+    els.count.textContent = String(total);
+    els.exp.disabled = total === 0;
+    els.clear.disabled = total === 0;
+
+    var q = query.trim().toLowerCase();
+    var shown = [];
+    for (var i = total - 1; i >= 0; i--) {
+      if (!q || entries[i].name.toLowerCase().indexOf(q) !== -1) shown.push({ e: entries[i], n: i + 1 });
+    }
+
+    if (!shown.length) {
+      var empty = el('li', 'empty');
+      empty.appendChild(el('strong', null, total ? 'Ничего не найдено' : 'Пока нет записей'));
+      empty.appendChild(document.createTextNode(total ? 'Измените запрос в поиске.' : 'Нажмите на микрофон и скажите, например: «Михаил Казаков».'));
+      els.log.appendChild(empty);
+      return;
+    }
+
+    shown.forEach(function (item) {
+      var e = item.e;
+      var d = new Date(e.ts);
+      var li = el('li', 'entry' + (e.id === freshId ? ' fresh' : ''));
+
+      li.appendChild(el('span', 'num', String(item.n)));
+
+      var who = el('div', 'who');
+      if (editingId === e.id) {
+        var row = el('div', 'edit-row');
+        var inp = document.createElement('input');
+        inp.type = 'text';
+        inp.value = e.name;
+        inp.maxLength = 80;
+        inp.setAttribute('aria-label', 'Изменить фамилию и имя');
+        var ok = el('button', 'btn primary', 'Сохранить');
+        ok.type = 'button';
+        var cancel = el('button', 'btn', 'Отмена');
+        cancel.type = 'button';
+        var commit = function () {
+          var v = formatName(inp.value);
+          if (v) { e.name = v; save(); }
+          editingId = null; render();
+        };
+        ok.addEventListener('click', commit);
+        cancel.addEventListener('click', function () { editingId = null; render(); });
+        inp.addEventListener('keydown', function (ev) {
+          if (ev.key === 'Enter') { ev.preventDefault(); commit(); }
+          if (ev.key === 'Escape') { editingId = null; render(); }
+        });
+        row.appendChild(inp); row.appendChild(ok); row.appendChild(cancel);
+        who.appendChild(row);
+        setTimeout(function () { inp.focus(); inp.select(); }, 0);
+      } else {
+        who.appendChild(el('div', 'name', e.name));
+        who.appendChild(el('span', 'src ' + (e.src === 'voice' ? 'voice' : ''), e.src === 'voice' ? 'голосом' : 'вручную'));
+      }
+      li.appendChild(who);
+
+      var when = el('div', 'when');
+      when.appendChild(el('div', 't', fmtTime(d)));
+      when.appendChild(el('div', 'd', fmtDate(d)));
+      li.appendChild(when);
+
+      var acts = el('div', 'acts');
+      acts.appendChild(iconButton('Изменить запись', 'M4 20h4L19 9a2.8 2.8 0 0 0-4-4L4 16v4z', function () { editingId = e.id; render(); }));
+      acts.appendChild(iconButton('Удалить запись', 'M5 7h14M10 7V4h4v3M7 7l1 13h8l1-13', function () { removeEntry(e.id); }));
+      li.appendChild(acts);
+
+      els.log.appendChild(li);
+    });
+    freshId = null;
+  }
+
+  /* ---------- Удаление с отменой ---------- */
+  var toastTimer = null;
+  var undoFn = null;
+  function showToast(msg, onUndo) {
+    els.toastMsg.textContent = msg;
+    undoFn = onUndo;
+    els.toast.hidden = false;
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function () { els.toast.hidden = true; undoFn = null; }, 6000);
+  }
+  els.toastBtn.addEventListener('click', function () {
+    if (undoFn) undoFn();
+    undoFn = null;
+    els.toast.hidden = true;
+  });
+
+  function removeEntry(id) {
+    var idx = -1;
+    for (var i = 0; i < entries.length; i++) if (entries[i].id === id) { idx = i; break; }
+    if (idx < 0) return;
+    var removed = entries.splice(idx, 1)[0];
+    save(); render();
+    showToast('Запись удалена', function () {
+      entries.splice(Math.min(idx, entries.length), 0, removed);
+      save(); render();
+    });
+  }
+
+  var armTimer = null;
+  els.clear.addEventListener('click', function () {
+    if (!els.clear.classList.contains('armed')) {
+      els.clear.classList.add('armed');
+      els.clear.textContent = 'Точно очистить?';
+      clearTimeout(armTimer);
+      armTimer = setTimeout(disarm, 4000);
+      return;
+    }
+    disarm();
+    var backup = entries.slice();
+    entries = [];
+    save(); render();
+    showToast('Журнал очищен', function () { entries = backup; save(); render(); });
+  });
+  function disarm() {
+    els.clear.classList.remove('armed');
+    els.clear.textContent = 'Очистить';
+    clearTimeout(armTimer);
+  }
+
+  /* ---------- Поиск, ручной ввод, CSV ---------- */
+  els.search.addEventListener('input', function () { query = els.search.value; render(); });
+
+  els.manualForm.addEventListener('submit', function (ev) {
+    ev.preventDefault();
+    var entry = addEntry(els.manualName.value, 'manual', new Date());
+    if (entry) {
+      els.manualName.value = '';
+      setStatus('Записано: ' + entry.name, false);
+    }
+  });
+
+  els.exp.addEventListener('click', function () {
+    var rows = [['№', 'Фамилия и имя', 'Дата', 'Время', 'Способ']];
+    entries.forEach(function (e, i) {
+      var d = new Date(e.ts);
+      rows.push([i + 1, e.name, fmtDate(d), fmtTime(d), e.src === 'voice' ? 'голосом' : 'вручную']);
+    });
+    var csv = rows.map(function (r) {
+      return r.map(function (c) { return '"' + String(c).replace(/"/g, '""') + '"'; }).join(';');
+    }).join('\r\n');
+    var blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8' });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url;
+    a.download = 'zhurnal-' + fmtDate(new Date()).replace(/\./g, '-') + '.csv';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(function () { URL.revokeObjectURL(url); }, 2000);
+  });
+
+  /* ---------- Статус ---------- */
+  function setStatus(msg, isErr) {
+    els.status.textContent = msg;
+    els.status.classList.toggle('err', !!isErr);
+  }
+  function showNotice(msg) { els.notice.textContent = msg; els.notice.hidden = false; }
+
+  /* ---------- Распознавание речи ---------- */
+  var rec = null;
+  var wantListening = false;
+
+  function setListeningUI(on) {
+    els.capture.classList.toggle('listening', on);
+    els.mic.setAttribute('aria-pressed', on ? 'true' : 'false');
+    els.mic.setAttribute('aria-label', on ? 'Выключить микрофон' : 'Включить микрофон');
+  }
+
+  if (!SR) {
+    els.mic.disabled = true;
+    showNotice('Этот браузер не поддерживает распознавание речи. Откройте сайт в Google Chrome, Microsoft Edge или Safari. Вводить фамилии вручную можно и здесь.');
+    setStatus('Голосовой ввод недоступен в этом браузере.', true);
+  } else if (location.protocol === 'http:' && location.hostname !== 'localhost' && location.hostname !== '127.0.0.1') {
+    showNotice('Микрофон работает только на защищённом соединении. Откройте сайт по адресу, который начинается с https://.');
+  }
+
+  function buildRecognition() {
+    var r = new SR();
+    r.lang = 'ru-RU';
+    r.continuous = true;
+    r.interimResults = true;
+    r.maxAlternatives = 1;
+
+    r.onstart = function () {
+      setListeningUI(true);
+      setStatus('Слушаю. Назовите фамилию и имя.', false);
+    };
+
+    r.onresult = function (ev) {
+      var interim = '';
+      for (var i = ev.resultIndex; i < ev.results.length; i++) {
+        var res = ev.results[i];
+        var text = res[0].transcript;
+        if (res.isFinal) {
+          var entry = addEntry(text, 'voice', new Date());
+          if (entry) setStatus('Записано: ' + entry.name, false);
+          els.live.textContent = '…';
+        } else {
+          interim += text;
+        }
+      }
+      if (interim) els.live.textContent = interim;
+    };
+
+    r.onerror = function (ev) {
+      var code = ev.error;
+      if (code === 'no-speech' || code === 'aborted') return;
+      if (code === 'not-allowed' || code === 'service-not-allowed') {
+        wantListening = false;
+        setStatus('Нет доступа к микрофону. Разрешите его в настройках сайта (значок замка рядом с адресом) и нажмите снова.', true);
+      } else if (code === 'audio-capture') {
+        wantListening = false;
+        setStatus('Микрофон не найден. Подключите его и попробуйте ещё раз.', true);
+      } else if (code === 'network') {
+        wantListening = false;
+        setStatus('Нет связи с сервисом распознавания. Проверьте интернет.', true);
+      } else {
+        wantListening = false;
+        setStatus('Ошибка распознавания: ' + code, true);
+      }
+    };
+
+    r.onend = function () {
+      if (wantListening) {
+        setTimeout(function () {
+          if (!wantListening) return;
+          try { r.start(); } catch (e) {}
+        }, 250);
+      } else {
+        setListeningUI(false);
+        els.live.textContent = '…';
+        if (!els.status.classList.contains('err') && els.status.textContent.indexOf('Записано') !== 0) {
+          setStatus('Микрофон выключен. Нажмите, чтобы продолжить.', false);
+        }
+      }
+    };
+    return r;
+  }
+
+  els.mic.addEventListener('click', function () {
+    if (!SR) return;
+    if (wantListening) {
+      wantListening = false;
+      try { rec.stop(); } catch (e) {}
+      return;
+    }
+    rec = buildRecognition();
+    wantListening = true;
+    setStatus('Запрашиваю доступ к микрофону…', false);
+    try { rec.start(); } catch (e) {
+      wantListening = false;
+      setStatus('Не удалось включить микрофон. Обновите страницу и попробуйте снова.', true);
+    }
+  });
+
+  render();
+})();
+</script>
+</body>
+</html>
